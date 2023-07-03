@@ -10,7 +10,7 @@ import (
 
 const (
 	GoTargetModel    int = 0
-	GoTargetResolver     = 1
+	GoTargetResolver int = 1
 )
 
 const (

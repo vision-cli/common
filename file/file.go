@@ -29,7 +29,7 @@ func CreateDir(path string) error {
 // DeleteIfEmptyDir deletes path if it is an accessible empty directory.
 func DeleteIfEmptyDir(path string) {
 	if isAcessibleEmptyDir(path) {
-		Osremove(path)
+		_ = Osremove(path)
 	}
 }
 
