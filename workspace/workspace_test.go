@@ -21,7 +21,7 @@ func TestInit_RunsGoWorkInit(t *testing.T) {
 		return nil
 	}
 	e := mocks.NewMockExecutor()
-	result := workspace.Init("targetdir", e)
+	result := workspace.Init("targetdir", &e)
 	require.NoError(t, result)
 	assert.Equal(t, 2, len(removed))
 	assert.Equal(t, "targetdir/go.work", removed[0])
@@ -37,7 +37,7 @@ func TestInit_FileCannotBeRemoved_ReturnsError(t *testing.T) {
 		return errors.New("cannot remove file")
 	}
 	e := mocks.NewMockExecutor()
-	result := workspace.Init("targetdir", e)
+	result := workspace.Init("targetdir", &e)
 	require.Error(t, result)
 }
 
@@ -48,7 +48,7 @@ func TestUse_WorkspaceExists_RunsGoWorkUsePath(t *testing.T) {
 		return nil, nil
 	}
 	e := mocks.NewMockExecutor()
-	result := workspace.Use("targetdir", "targetPath", e)
+	result := workspace.Use("targetdir", "targetPath", &e)
 	require.NoError(t, result)
 	assert.Equal(t, 1, len(e.History()))
 	assert.Equal(t, "updating workspace modules", e.History()[0])
@@ -66,7 +66,7 @@ func TestUse_WorkspaceDoesNotExist_RunsInitAndGoWorkUsePath(t *testing.T) {
 		return nil
 	}
 	e := mocks.NewMockExecutor()
-	result := workspace.Use("targetdir", "targetPath", e)
+	result := workspace.Use("targetdir", "targetPath", &e)
 	require.NoError(t, result)
 	assert.Equal(t, 2, len(e.History()))
 	assert.Equal(t, "initialising workspace", e.History()[0])

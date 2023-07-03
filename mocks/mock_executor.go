@@ -37,8 +37,8 @@ func (e *MockExecutor) History() []string {
 	return e.history
 }
 
-func NewMockExecutor() *MockExecutor {
-	return &MockExecutor{
+func NewMockExecutor() MockExecutor {
+	return MockExecutor{
 		history: []string{},
 		cmds:    map[string]string{},
 	}

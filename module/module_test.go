@@ -19,7 +19,7 @@ func TestInit_RunsGoModInit(t *testing.T) {
 		return nil
 	}
 	e := mocks.NewMockExecutor()
-	result := module.Init("targetdir", "modulename", e)
+	result := module.Init("targetdir", "modulename", &e)
 	require.NoError(t, result)
 	assert.Equal(t, 2, len(removed))
 	assert.Equal(t, "targetdir/go.mod", removed[0])
@@ -30,7 +30,7 @@ func TestInit_RunsGoModInit(t *testing.T) {
 
 func TestTidy_RunsGoModTidy(t *testing.T) {
 	e := mocks.NewMockExecutor()
-	result := module.Tidy("targetdir", e)
+	result := module.Tidy("targetdir", &e)
 	require.NoError(t, result)
 	assert.Equal(t, "finding required module dependencies", e.History()[0])
 }
@@ -67,7 +67,7 @@ func TestRename_RenamesMod(t *testing.T) {
 
 func TestReplace_RunsGoModEditReplace(t *testing.T) {
 	e := mocks.NewMockExecutor()
-	result := module.Replace("targetdir", "servicemod", "replacement", e)
+	result := module.Replace("targetdir", "servicemod", "replacement", &e)
 	require.NoError(t, result)
 	assert.Equal(t, "replace for servicemod", e.History()[0])
 }
