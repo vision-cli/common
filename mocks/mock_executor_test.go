@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vision-cli/common/mocks"
 )
 
@@ -22,8 +23,10 @@ func TestCommandExists_ReturnsFalseIfCommandDoesntExist(t *testing.T) {
 
 func TestHistory_ReturnErrorsAndOutput(t *testing.T) {
 	e := mocks.NewMockExecutor()
-	e.Errors(&exec.Cmd{}, "", "error")
-	e.Output(&exec.Cmd{}, "", "output")
+	err := e.Errors(&exec.Cmd{}, "", "error")
+	require.NoError(t, err)
+	_, err = e.Output(&exec.Cmd{}, "", "output")
+	require.NoError(t, err)
 	assert.Equal(t, []string{"error", "output"}, e.History())
 }
 

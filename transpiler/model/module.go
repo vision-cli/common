@@ -17,7 +17,7 @@ func (m Module) isValid() (bool, error) {
 	}
 
 	if m.ApiVersion == "" {
-		m.ApiVersion = "v1"
+		return false, errors.New("Module version is empty")
 	}
 
 	if len(m.Services) == 0 {
