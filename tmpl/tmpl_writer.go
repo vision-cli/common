@@ -55,15 +55,8 @@ func (OsTmplWriter) WriteExactFS(templatePath string, targetPath string, templat
 	return copyFile(src, targetPath)
 }
 
-// CreateDir creates a directory, along with any necessary parents.
-// If path is already a file that is not a directory,
-// CreateDir will remove the file and create a directory in its place.
 func (OsTmplWriter) CreateDir(path string) error {
-	info, err := os.Stat(path)
-	if err == nil && !info.IsDir() {
-		os.Remove(path)
-	}
-	return os.MkdirAll(path, os.ModePerm)
+	return file.CreateDir(path)
 }
 
 // Returns a template with the standard function map
