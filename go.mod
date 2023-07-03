@@ -18,7 +18,7 @@ require (
 	github.com/oshothebig/pbast v0.0.0-20170925213915-84cdd26c3def
 	github.com/stretchr/testify v1.8.4
 	github.com/vision-cli/api v0.3.0
-	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/term v0.1.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 )
