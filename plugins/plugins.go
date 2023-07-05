@@ -1,44 +1,54 @@
 package plugins
 
 import (
-	"os"
+	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/vision-cli/common/execute"
+	"github.com/vision-cli/common/file"
 )
 
-func GetPlugins() []string {
+const (
+	goBinEnvVar      = "GOBIN"
+	visionSeparator  = "-"
+	visionFirstWord  = "vision"
+	visionSecondWord = "plugin"
+)
+
+func GetPlugins(executor execute.Executor) ([]string, error) {
 	var plugins []string
-	pluginPath := goBinPath()
-	pluginFiles, err := os.ReadDir(pluginPath)
+	pluginPath, err := goBinPath(executor)
 	if err != nil {
-		// do something
-		//		cli.Fatalf("Cannot read plugin directory %s", pluginPath)
+		return plugins, err
+	}
+	pluginFiles, err := file.ReadDir(pluginPath)
+	if err != nil {
+		return plugins, fmt.Errorf("cannot read plugin directory %s: %s", pluginPath, err.Error())
 	}
 	for _, pluginFile := range pluginFiles {
 		if !pluginFile.IsDir() && fileIsVisionPlugin(pluginFile.Name()) {
 			plugins = append(plugins, pluginFile.Name())
 		}
 	}
-	return plugins
+	return plugins, nil
 }
 
-func goBinPath() string {
-	goBinPath := os.Getenv("GOBIN")
+func goBinPath(executor execute.Executor) (string, error) {
+	goBinPath := file.GetEnv(goBinEnvVar)
 	if goBinPath == "" {
-		goPath, err := exec.Command("go", "env", "GOPATH").Output()
+		goPath, err := executor.Output(exec.Command("go", "env", "GOPATH"), ".", "getting GOPATH")
 		if err != nil {
-			// do something
-			//			cli.Fatalf("Cannot determine GOBIN. Please set GOBIN or GOPATH")
+			return "", err
 		}
 		goBinPath = string(goPath)[:len(goPath)-1] + "/bin"
 	}
-	return goBinPath
+	return goBinPath, nil
 }
 
 func fileIsVisionPlugin(filename string) bool {
-	c := strings.Split(filename, "-")
-	// eventually remove 'example'
-	if len(c) != 4 || c[0] != "vision" || c[1] != "plugin" {
+	c := strings.Split(filename, visionSeparator)
+	if len(c) != 4 || c[0] != visionFirstWord || c[1] != visionSecondWord {
 		return false
 	}
 	return true

@@ -12,6 +12,12 @@ import (
 
 func Call[T any](plugin string, request *api_v1.PluginRequest, executor execute.Executor) (*T, error) {
 	cmd := exec.Command(plugin)
+	if request == nil {
+		return nil, fmt.Errorf("comms.Call called with nil request")
+	}
+	if executor == nil {
+		return nil, fmt.Errorf("comms.Call called with nil executor")
+	}
 	query, err := marshal.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("cannot marshal request for plugin %s: %s", plugin, err.Error())
