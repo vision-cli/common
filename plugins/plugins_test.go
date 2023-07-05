@@ -13,11 +13,16 @@ import (
 )
 
 func TestGoGetPlugins_WhenEnvSet_ReturnsGood(t *testing.T) {
-	old := file.Osgetenv
-	defer func() { file.Osgetenv = old }()
+	oldosgetenv := file.Osgetenv
+	defer func() { file.Osgetenv = oldosgetenv }()
 	file.Osgetenv = func(key string) string {
 		return "/usr/local/go/bin"
 	}
+
+	oldreaddir := file.Osreaddir
+	defer func() { file.Osreaddir = oldreaddir }()
+	file.Osreaddir = mockReadDir
+
 	e := mocks.NewMockExecutor()
 	_, err := plugins.GetPlugins(&e)
 	require.NoError(t, err)
@@ -35,11 +40,16 @@ func TestGoGetPlugins_CantReadDir_ReturnsError(t *testing.T) {
 }
 
 func TestGoGetPlugins_WhenEnvNotSet_CallsGoEnvPath(t *testing.T) {
-	old := file.Osgetenv
-	defer func() { file.Osgetenv = old }()
+	oldosgetenv := file.Osgetenv
+	defer func() { file.Osgetenv = oldosgetenv }()
 	file.Osgetenv = func(key string) string {
 		return ""
 	}
+
+	oldreaddir := file.Osreaddir
+	defer func() { file.Osreaddir = oldreaddir }()
+	file.Osreaddir = mockReadDir
+
 	e := mocks.NewMockExecutor()
 	e.SetOutput("/usr/local/go\n")
 	_, err := plugins.GetPlugins(&e)
