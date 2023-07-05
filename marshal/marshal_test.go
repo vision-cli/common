@@ -21,10 +21,17 @@ func TestUnmarshal_WithValidInputProvided_ReturnsObject(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
-func TestUnmarshal_ReturnsErrorWhenInValidInputProvided(t *testing.T) {
+func TestUnmarshal_WhenInValidInputProvided_ReturnsError(t *testing.T) {
 	req := `{"Result":"result","Error":"",}` // extra comma
 	_, err := marshal.Unmarshal[api_v1.PluginResponse](req)
 	require.Error(t, err)
+}
+
+func TestUnmarshal_WhenFieldMissing_ReturnsError(t *testing.T) {
+	req := `{"Something":"else"}`
+	_, err := marshal.Unmarshal[api_v1.PluginResponse](req)
+	require.Error(t, err)
+	assert.Equal(t, `json: unknown field "Something"`, err.Error())
 }
 
 func TestMarshal_WithValidObject_ReturnsString(t *testing.T) {

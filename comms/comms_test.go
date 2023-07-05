@@ -29,12 +29,19 @@ func TestCall_WhenReturnIsValid_ReturnsStruct(t *testing.T) {
 }
 
 func TestCall_WhenReturnIsInvalid_ReturnsError(t *testing.T) {
-	t.Skip()
 	e := mocks.NewMockExecutor()
-	e.SetOutput(`{}`)
-	result, err := comms.Call[TestMsg]("plugin", &pluginRequest, &e)
-	require.NoError(t, err)
-	require.Equal(t, "hello", result.Msg)
+	e.SetOutput(`{"Result":"","Error":"some error"}`)
+	_, err := comms.Call[TestMsg]("plugin", &pluginRequest, &e)
+	require.Error(t, err)
+	require.Equal(t, "some error", err.Error())
+}
+
+func TestCall_WhenReturnIsNotExpectStructButAlsoNotError_ReturnsError(t *testing.T) {
+	e := mocks.NewMockExecutor()
+	e.SetOutput(`{"Result":"some result","Error":""}`)
+	_, err := comms.Call[TestMsg]("plugin", &pluginRequest, &e)
+	require.Error(t, err)
+	require.Equal(t, "did not get expected result type from plugin:, got PluginResponse with result some result", err.Error())
 }
 
 func TestCall_WhenExecutorFails_ReturnsError(t *testing.T) {
