@@ -70,7 +70,7 @@ func TestGoGetPlugins_ReturnsAllValidPlugins(t *testing.T) {
 	e := mocks.NewMockExecutor()
 	result, err := plugins.GetPlugins(&e)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"vision-plugin-myplugin-v2"}, result)
+	assert.Equal(t, []plugins.Plugin{{"vision-plugin-myplugin-v2", "/usr/local/go/bin/vision-plugin-myplugin-v2", nil}}, result)
 }
 
 type MockDirEntry struct {
