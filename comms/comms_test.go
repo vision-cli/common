@@ -2,6 +2,8 @@ package comms_test
 
 import (
 	"fmt"
+	"github.com/vision-cli/common/execute"
+	"github.com/vision-cli/common/tmpl"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -49,6 +51,20 @@ func TestCall_WhenReturnIsNotExpectStructButAlsoNotError_ReturnsError(t *testing
 	_, err := comms.Call[TestMsg](plugin, &pluginRequest, &e)
 	require.Error(t, err)
 	require.Equal(t, "did not get expected result type from plugin:, got PluginResponse with result some result", err.Error())
+}
+
+func TestCall_WhenInternalReturnIsValid_ReturnsStruct(t *testing.T) {
+	e := mocks.NewMockExecutor()
+	plugin := plugins.Plugin{
+		Name:       "internal-plugin",
+		PluginPath: "internal-plugin",
+		InternalCommand: func(_ string, _ execute.Executor, _ tmpl.TmplWriter) string {
+			return `{"Msg":"hello"}`
+		},
+	}
+	result, err := comms.Call[TestMsg](plugin, &pluginRequest, &e)
+	require.NoError(t, err)
+	require.Equal(t, "hello", result.Msg)
 }
 
 func TestCall_WhenExecutorFails_ReturnsError(t *testing.T) {

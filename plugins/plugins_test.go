@@ -2,6 +2,8 @@ package plugins_test
 
 import (
 	"fmt"
+	"github.com/vision-cli/common/execute"
+	"github.com/vision-cli/common/tmpl"
 	"io/fs"
 	"testing"
 
@@ -73,6 +75,64 @@ func TestGoGetPlugins_ReturnsAllValidPlugins(t *testing.T) {
 	assert.Equal(t, []plugins.Plugin{{"vision-plugin-myplugin-v2", "/usr/local/go/bin/vision-plugin-myplugin-v2", nil}}, result)
 }
 
+func TestGoGetPlugins_ReturnsInternalPlugins(t *testing.T) {
+	oldgetenv := file.Osgetenv
+	defer func() { file.Osgetenv = oldgetenv }()
+	file.Osgetenv = func(key string) string {
+		return "/usr/local/go/bin"
+	}
+
+	oldreaddir := file.Osreaddir
+	defer func() { file.Osreaddir = oldreaddir }()
+	file.Osreaddir = mockReadDir
+
+	oldInternalPlugins := plugins.InternalPlugins
+	defer func() { plugins.InternalPlugins = oldInternalPlugins }()
+
+	plugins.InternalPlugins = append(plugins.InternalPlugins,
+		plugins.Plugin{
+			Name:            "vision-plugin-myinternalplugin-v1",
+			PluginPath:      "",
+			InternalCommand: dummyPluginHandler,
+		})
+
+	e := mocks.NewMockExecutor()
+	result, err := plugins.GetPlugins(&e)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(result))
+	assert.Equal(t, "vision-plugin-myplugin-v2", result[0].Name)
+	assert.Equal(t, "vision-plugin-myinternalplugin-v1", result[1].Name)
+}
+
+func TestGoGetPlugins_ReturnsInternalOverridesExternalPlugin(t *testing.T) {
+	oldgetenv := file.Osgetenv
+	defer func() { file.Osgetenv = oldgetenv }()
+	file.Osgetenv = func(key string) string {
+		return "/usr/local/go/bin"
+	}
+
+	oldreaddir := file.Osreaddir
+	defer func() { file.Osreaddir = oldreaddir }()
+	file.Osreaddir = mockReadDir
+
+	oldInternalPlugins := plugins.InternalPlugins
+	defer func() { plugins.InternalPlugins = oldInternalPlugins }()
+
+	plugins.InternalPlugins = append(plugins.InternalPlugins,
+		plugins.Plugin{
+			Name:            "vision-plugin-myplugin-v2",
+			PluginPath:      "",
+			InternalCommand: dummyPluginHandler,
+		})
+
+	e := mocks.NewMockExecutor()
+	result, err := plugins.GetPlugins(&e)
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, "vision-plugin-myplugin-v2", result[0].Name)
+	assert.NotNil(t, result[0].InternalCommand)
+}
+
 type MockDirEntry struct {
 	name  string
 	isDir bool
@@ -107,4 +167,8 @@ var mockReadDir = func(name string) ([]fs.DirEntry, error) {
 		MockDirEntry{name: "visions-plugin-myplugin-v1", isDir: false},
 		MockDirEntry{name: "vision-plugin-myplugin-v1-extra", isDir: false},
 	}, nil
+}
+
+var dummyPluginHandler = func(_ string, _ execute.Executor, _ tmpl.TmplWriter) string {
+	return ""
 }
