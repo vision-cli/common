@@ -2,8 +2,13 @@ package extractor
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/vision-cli/common/transpiler/model"
 )
@@ -48,10 +53,10 @@ func GetProjectStructure(projectDirectory string) string {
 		result += fmt.Sprintf("\nModule Name is: "+module.Name+" - Module index is: %d\n", i)
 		for j, service := range module.Services {
 			result += fmt.Sprintf("\tService Name is: "+service.Name+" - Service index is: %d\n", j)
-			for k, enum := range service.Enums {
-				result += fmt.Sprintf("\t\tEnum Name is: "+enum.Name+" - Enum index is: %d\n", k)
-				for l, value := range enum.Values {
-					result += fmt.Sprintf("\t\t\tEnum Value is: "+value+" - Enum Value index is: %d\n", l)
+			for k, entity := range service.Entities {
+				result += fmt.Sprintf("\t\tEntity Name is: "+entity.Name+" - Entity index is: %d\n", k)
+				for l, field := range entity.Fields {
+					result += fmt.Sprintf("\t\t\tEnum Value is: "+field.Name+" - Enum Value index is: %d\n", l)
 				}
 			}
 		}
@@ -96,10 +101,10 @@ func getServices(moduleDirectory string) []model.Service {
 	for i, path := range serviceDirs {
 		if path.IsDir() {
 			services = append(services, model.Service{Name: path.Name()})
-			// modelsFolder := filepath.Join(moduleDirectory, path.Name(), "models")
-			services[i].Enums = getEnums("modelsFolder")
+			modelsFolder := filepath.Join(moduleDirectory, path.Name(), "models")
+			// services[i].Enums = getEnums(modelsFolder)
 			// services[i].Enums = []model.Enum{{Name: "Test", Values: []string{"testing", "Enums"}}}
-			// services[i].Entities = getEntities(modelsFolder)
+			services[i].Entities = getEntities(modelsFolder)
 		}
 	}
 
@@ -107,14 +112,63 @@ func getServices(moduleDirectory string) []model.Service {
 }
 
 func getEntities(modelsFolder string) []model.Entity {
-	panic("unimplemented")
+	modelsGo := filepath.Join(modelsFolder, "models.go")
+	entities := []model.Entity{}
+
+	// entities = append(entities, model.Entity{Name: modelsGo, Persistence: "db", Fields: []model.Field{{Name: "FieldName"}}})
+
+	// Create a new file set
+	fset := token.NewFileSet()
+
+	// Parse the file and retrieve the AST
+	file, err := parser.ParseFile(fset, modelsGo, nil, parser.ParseComments)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Loop through the declarations in the file.
+	for _, decl := range file.Decls {
+		// Check if the declaration is a type declaration.
+		if genDecl, ok := decl.(*ast.GenDecl); ok {
+			// Check if the type declaration has specifications (e.g., structs).
+			for _, spec := range genDecl.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+					// Check if the specification is a struct type.
+					if _, ok := typeSpec.Type.(*ast.StructType); ok {
+						// Found the first struct type. Print its name and exit.
+						if !strings.HasSuffix(typeSpec.Name.Name, "Data") {
+							//Get FIELDS and pass them to entities
+							var fields []model.Field
+							entities = append(entities, model.Entity{Name: typeSpec.Name.Name, Persistence: "db", Fields: fields})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Process the AST as needed
+	// Example: Print the names of all struct types
+	// ast.Inspect(file, func(node ast.Node) bool {
+	// 	if typeSpec, ok := node.(*ast.TypeSpec); ok {
+	// 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+	// 			entities[0].Name = fmt.Sprint("Struct Name:", typeSpec.Name)
+	// 			for _, field := range structType.Fields.List {
+	// 				entities[0].Persistence = fmt.Sprint("Field Name:", field.Names)
+	// 			}
+	// 		}
+	// 	}
+	// 	return true
+	// })
+
+	return entities
 }
 
 func getEnums(modelsFolder string) []model.Enum {
-	// modelsGo := filepath.Join(modelsFolder, "models.go")
+	modelsGo := filepath.Join(modelsFolder, "models.go")
 	enums := []model.Enum{}
 
-	enums = append(enums, model.Enum{Name: "testing", Values: []string{"Temps"}})
+	enums = append(enums, model.Enum{Name: modelsGo, Values: []string{"Temps"}})
 
 	// Create a new file set
 	// fset := token.NewFileSet()
