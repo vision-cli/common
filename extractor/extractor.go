@@ -44,7 +44,8 @@ func GetProjectStructure(projectDirectory string) string {
 	modules := getModules(targetDir)
 
 	for i := range modules {
-		moduleDirectory := filepath.Join(targetDir, modules[i].Name)
+		moduleNameWithVersion := fmt.Sprintf("%s.%s", modules[i].Name, modules[i].ApiVersion)
+		moduleDirectory := filepath.Join(targetDir, moduleNameWithVersion)
 		modules[i].Services = getServices(moduleDirectory)
 	}
 
@@ -53,7 +54,7 @@ func GetProjectStructure(projectDirectory string) string {
 		result += printFields(module, 1)
 	}
 
-	return "[]model.Module{}, []model.Service{}sameas: " + result
+	return result
 }
 
 func getModules(targetDir string) []model.Module {
@@ -62,7 +63,20 @@ func getModules(targetDir string) []model.Module {
 
 	for _, path := range moduleDirs {
 		if path.IsDir() && path.Name() != "default" {
-			modules = append(modules, model.Module{Name: path.Name()})
+			parts := strings.Split(path.Name(), ".")
+			if len(parts) == 2 {
+				modules = append(modules, model.Module{
+					Name:       parts[0],
+					ApiVersion: parts[1],
+				})
+			} else {
+				// Handle the case where the name doesn't contain a dot.
+				// You may want to define a default value for ApiVersion here.
+				modules = append(modules, model.Module{
+					Name:       parts[0],
+					ApiVersion: "", // Provide a default value or handle the case accordingly.
+				})
+			}
 		}
 	}
 
