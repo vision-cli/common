@@ -41,10 +41,8 @@ func GetProjectStructure(projectDirectory string) string {
 	var result string
 	targetDir := filepath.Join(projectDirectory, "services")
 
-	//Getting Module Names
 	modules := getModules(targetDir)
 
-	//Getting services names
 	for i := range modules {
 		moduleDirectory := filepath.Join(targetDir, modules[i].Name)
 		modules[i].Services = getServices(moduleDirectory)
@@ -53,16 +51,6 @@ func GetProjectStructure(projectDirectory string) string {
 	//This is just used for testing to print the structure we're actually creating, for verification purposes
 	for _, module := range modules {
 		result += printFields(module, 1)
-		// result += fmt.Sprintf("\nModule Name is: "+module.Name+" - Module index is: %d\n", i)
-		// for j, service := range module.Services {
-		// 	result += fmt.Sprintf("\tService Name is: "+service.Name+" - Service index is: %d\n", j)
-		// 	for k, entity := range service.Entities {
-		// 		result += fmt.Sprintf("\t\tEntity Name is: "+entity.Name+" - Entity index is: %d\n", k)
-		// 		for l, field := range entity.Fields {
-		// 			result += fmt.Sprintf("\t\t\tField Value is: "+field.Name+" - Field Value index is: %d\n", l)
-		// 		}
-		// 	}
-		// }
 	}
 
 	return "[]model.Module{}, []model.Service{}sameas: " + result
@@ -80,22 +68,6 @@ func getModules(targetDir string) []model.Module {
 
 	return modules
 }
-
-// service := model.Service{
-// 	Name: "projects",
-// 	Enums: []model.Enum{
-// 		{Name: "project-type", Values: []string{"not-assigned", "internal", "billable"}},
-// 	},
-// 	Entities: []model.Entity{
-// 		{
-// 			Name:        "project",
-// 			Persistence: "db",
-// 			Fields: []model.Field{
-// 				{Name: "name", Type: "string", Tag: "db:", IsArray: false, IsNullable: true, IsSearchable: false},
-// 			},
-// 		},
-// 	},
-// }
 
 func getServices(moduleDirectory string) []model.Service {
 	serviceDirs, _ := os.ReadDir(moduleDirectory)
@@ -118,137 +90,84 @@ func getEntities(modelsFolder string) []model.Entity {
 	modelsGo := filepath.Join(modelsFolder, "models.go")
 	entities := []model.Entity{}
 
-	// entities = append(entities, model.Entity{Name: modelsGo, Persistence: "db", Fields: []model.Field{{Name: "FieldName"}}})
-
-	// Create a new file set
 	fset := token.NewFileSet()
 
-	// Parse the file and retrieve the AST
 	file, err := parser.ParseFile(fset, modelsGo, nil, parser.ParseComments)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Loop through the declarations in the file.
-	// for _, decl := range file.Decls {
-	// 	// Check if the declaration is a type declaration.
-	// 	if genDecl, ok := decl.(*ast.GenDecl); ok {
-	// 		// Check if the type declaration has specifications (e.g., structs).
-	// 		for _, spec := range genDecl.Specs {
-	// 			if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-	// 				// Check if the specification is a struct type.
-	// 				if _, ok := typeSpec.Type.(*ast.StructType); ok {
-	// 					// Found the first struct type. Print its name and exit.
-	// 					if !strings.HasSuffix(typeSpec.Name.Name, "Data") {
-	// 						//Get FIELDS and pass them to entities
-	// 						var fields []model.Field
-	// 						entities = append(entities, model.Entity{Name: typeSpec.Name.Name, Persistence: "db", Fields: fields})
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	for _, decl := range file.Decls {
 		// Check if the declaration is a type declaration.
 		if genDecl, ok := decl.(*ast.GenDecl); ok {
-			for _, spec := range genDecl.Specs {
-				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-					// Check if the specification is a struct type.
-					if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-						// Check if the struct type is named "ProjectData".
-						if strings.HasSuffix(typeSpec.Name.Name, "Data") {
-							// Create an Entity for "Project" and add fields from "ProjectData".
-							entityName := typeSpec.Name.Name[:len(typeSpec.Name.Name)-4]
-							entity := model.Entity{Name: entityName}
-
-							fields := getFields(structType)
-							// Loop through the fields of ProjectData.
-
-							entity.Fields = fields
-
-							// Add the entity to the entities slice.
-							entities = append(entities, entity)
-						}
-					}
-				}
-			}
+			parseTypeSpecs(genDecl.Specs, &entities)
 		}
 	}
-	// Process the AST as needed
-	// Example: Print the names of all struct types
-	// ast.Inspect(file, func(node ast.Node) bool {
-	// 	if typeSpec, ok := node.(*ast.TypeSpec); ok {
-	// 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-	// 			entities[0].Name = fmt.Sprint("Struct Name:", typeSpec.Name)
-	// 			for _, field := range structType.Fields.List {
-	// 				entities[0].Persistence = fmt.Sprint("Field Name:", field.Names)
-	// 			}
-	// 		}
-	// 	}
-	// 	return true
-	// })
 
 	return entities
 }
 
+func parseTypeSpecs(specs []ast.Spec, entities *[]model.Entity) {
+	for _, spec := range specs {
+		if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+			if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+				if strings.HasSuffix(typeSpec.Name.Name, "Data") {
+					entityName := typeSpec.Name.Name[:len(typeSpec.Name.Name)-4]
+					fields := getFields(structType)
+
+					entity := model.Entity{
+						Name:        entityName,
+						Persistence: "db",
+						Fields:      fields,
+					}
+
+					*entities = append(*entities, entity)
+				}
+			}
+		}
+	}
+}
+
 func getFields(structType *ast.StructType) []model.Field {
-	// Loop through the fields of ProjectData.
 	var fields []model.Field
 
 	for _, field := range structType.Fields.List {
 		if field.Names != nil {
-			// Field names can be different if there are multiple fields in one line.
-			// In this case, we take only the last field name.
-			name := field.Names[len(field.Names)-1].Name
-
-			// Extract type information from the field.
-			var fieldType string
-			if _, isIdent := field.Type.(*ast.Ident); isIdent {
-				fieldType = field.Tag.Kind.String()
-			} else if selector, isSelector := field.Type.(*ast.SelectorExpr); isSelector {
-				selectorType := selector.Sel.Name
-				if selectorType == "UUID" {
-					fieldType = "id"
-				} else {
-					fieldType = "timestamp"
-				}
-			}
-			// You can process fieldType to get the actual type information.
-			// For example, if it's a pointer type, array, or a custom type, etc.
-
-			// Determine if the field is an array or not.
-			_, isArray := field.Type.(*ast.ArrayType)
-
-			// if arrType, isArray := field.Type.(*ast.ArrayType); isArray {
-			// 	// Found an array type.
-			// 	// Do whatever processing you need with the array type here.
-			// 	fmt.Println("Field:", field.Names[0].Name)
-			// 	fmt.Println("Type is an array:", arrType.Len == nil) // Check if the array type has a length or is a slice.
-			// }
-			// You can inspect fieldType further to determine if it's an array type.
-
-			// Determine if the field is nullable (i.e., a pointer type).
-			isNullable := false
-			// You can check if fieldType is a pointer type.
-
-			// Determine if the field is searchable (if applicable in your context).
-			isSearchable := false
-			// You can define criteria for determining if the field is searchable.
-
-			// Append the field to the entity.Fields slice.
-			fields = append(fields, model.Field{
-				Name:         name,
-				Type:         fieldType,
-				IsArray:      isArray,
-				IsNullable:   isNullable,
-				IsSearchable: isSearchable,
-			})
+			fields = append(fields, getFieldData(field))
 		}
 	}
 
 	return fields
+}
+
+func getFieldData(field *ast.Field) model.Field {
+	fieldData := model.Field{
+		Name:         field.Names[len(field.Names)-1].Name,
+		IsNullable:   false,
+		IsSearchable: false,
+	}
+
+	switch fieldType := field.Type.(type) {
+	case *ast.Ident:
+		fieldData.Type = fieldType.Name
+	case *ast.ArrayType:
+		fieldData.Type = fieldType.Elt.(*ast.Ident).Name
+		_, fieldData.IsArray = field.Type.(*ast.ArrayType)
+	case *ast.SelectorExpr:
+		fieldData.Type = getSelectorType(fieldType)
+	default:
+		fieldData.Type = "unknown"
+	}
+
+	return fieldData
+}
+
+func getSelectorType(selector *ast.SelectorExpr) string {
+	selectorType := selector.Sel.Name
+	if selectorType == "UUID" {
+		return "id"
+	}
+	return "timestamp"
 }
 
 func getEnums(modelsFolder string) []model.Enum {
