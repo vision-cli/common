@@ -8,6 +8,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/openconfig/goyang v1.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -18,6 +19,9 @@ require (
 	github.com/oshothebig/pbast v0.0.0-20170925213915-84cdd26c3def
 	github.com/stretchr/testify v1.8.4
 	github.com/vision-cli/api v0.3.0
+	github.com/yoheimuta/go-protoparser v3.4.0+incompatible
+	github.com/yoheimuta/go-protoparser/v4 v4.9.0
+	go.starlark.net v0.0.0-20230718153141-1c3ac63bd217
 	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/term v0.1.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0

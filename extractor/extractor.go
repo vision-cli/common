@@ -1,6 +1,7 @@
 package extractor
 
 import (
+	"bufio"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -12,7 +13,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vision-cli/common/cases"
 	"github.com/vision-cli/common/transpiler/model"
+	protoparser "github.com/yoheimuta/go-protoparser"
+	parserStructs "github.com/yoheimuta/go-protoparser/parser"
 )
 
 // type Module struct {
@@ -41,12 +45,12 @@ func GetProjectStructure(projectDirectory string) string {
 	var result string
 	targetDir := filepath.Join(projectDirectory, "services")
 
-	modules := getModules(targetDir)
+	modules := Modules(targetDir)
 
-	for i := range modules {
-		moduleNameWithVersion := fmt.Sprintf("%s.%s", modules[i].Name, modules[i].ApiVersion)
+	for i, module := range modules {
+		moduleNameWithVersion := fmt.Sprintf("%s.%s", module.Name, module.ApiVersion)
 		moduleDirectory := filepath.Join(targetDir, moduleNameWithVersion)
-		modules[i].Services = getServices(moduleDirectory)
+		modules[i].Services = Services(moduleDirectory, &module)
 	}
 
 	//This is just used for testing to print the structure we're actually creating, for verification purposes
@@ -57,7 +61,7 @@ func GetProjectStructure(projectDirectory string) string {
 	return result
 }
 
-func getModules(targetDir string) []model.Module {
+func Modules(targetDir string) []model.Module {
 	moduleDirs, _ := os.ReadDir(targetDir)
 	modules := []model.Module{}
 
@@ -83,16 +87,28 @@ func getModules(targetDir string) []model.Module {
 	return modules
 }
 
-func getServices(moduleDirectory string) []model.Service {
+func Services(moduleDirectory string, module *model.Module) []model.Service {
 	serviceDirs, _ := os.ReadDir(moduleDirectory)
 	services := []model.Service{}
 
 	for i, path := range serviceDirs {
 		if path.IsDir() {
-			services = append(services, model.Service{Name: path.Name()})
-			modelsFolder := filepath.Join(moduleDirectory, path.Name(), "models")
-			// services[i].Enums = getEnums(modelsFolder)
+			serviceName := path.Name()
+			services = append(services, model.Service{Name: serviceName})
+
+			// Construct the protoFilename
+			protoFilename := fmt.Sprintf("%s_%s%s%s", module.Name, module.ApiVersion[:1], module.ApiVersion[1:], serviceName)
+			protoFilename = cases.Snake(protoFilename)
+			protoFilename = fmt.Sprintf("%s.proto", protoFilename)
+			// Create the full protoFilePath
+			protoFilePath := filepath.Join(moduleDirectory, serviceName, "proto", protoFilename)
+
+			// Get the Enums for the service from the proto file
+			services[i].Enums = getEnums(protoFilePath)
+
 			// services[i].Enums = []model.Enum{{Name: "Test", Values: []string{"testing", "Enums"}}}
+
+			modelsFolder := filepath.Join(moduleDirectory, path.Name(), "models", "models.go")
 			services[i].Entities = getEntities(modelsFolder)
 		}
 	}
@@ -100,8 +116,7 @@ func getServices(moduleDirectory string) []model.Service {
 	return services
 }
 
-func getEntities(modelsFolder string) []model.Entity {
-	modelsGo := filepath.Join(modelsFolder, "models.go")
+func getEntities(modelsGo string) []model.Entity {
 	entities := []model.Entity{}
 
 	fset := token.NewFileSet()
@@ -184,36 +199,53 @@ func getSelectorType(selector *ast.SelectorExpr) string {
 	return "timestamp"
 }
 
-func getEnums(modelsFolder string) []model.Enum {
-	modelsGo := filepath.Join(modelsFolder, "models.go")
-	enums := []model.Enum{}
+func getEnums(protoFilePath string) []model.Enum {
+	serviceEnums := []model.Enum{}
 
-	enums = append(enums, model.Enum{Name: modelsGo, Values: []string{"Temps"}})
+	// Open the file
+	file, err := os.Open(protoFilePath)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+	}
+	defer file.Close()
 
-	// Create a new file set
-	// fset := token.NewFileSet()
+	// Create an io.Reader to read from the file
+	reader := bufio.NewReader(file)
 
-	// Parse the file and retrieve the AST
-	// file, err := parser.ParseFile(fset, modelsGo, nil, parser.ParseComments)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	proto, _ := protoparser.Parse(reader)
 
-	// Process the AST as needed
-	// Example: Print the names of all struct types
-	// ast.Inspect(file, func(node ast.Node) bool {
-	// 	if typeSpec, ok := node.(*ast.TypeSpec); ok {
-	// 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-	// 			enums[0].Values[0] = fmt.Sprint("Struct Name:", typeSpec.Name)
-	// 			for _, field := range structType.Fields.List {
-	// 				enums[0].Values[1] = fmt.Sprint("Field Name:", field.Names)
-	// 			}
-	// 		}
-	// 	}
-	// 	return true
-	// })
+	// Get enum information
+	enumInfo := getEnumInformation(proto)
 
-	return enums
+	// Print enum information
+	for enumName, enumValues := range enumInfo {
+		serviceEnums = append(serviceEnums, model.Enum{Name: enumName, Values: enumValues})
+	}
+	return serviceEnums
+}
+
+func getEnumInformation(proto *parserStructs.Proto) map[string][]string {
+	enumInfo := make(map[string][]string)
+
+	// Traverse ProtoBody and look for elements of type *Enum
+	for _, element := range proto.ProtoBody {
+		if enum, ok := element.(*parserStructs.Enum); ok {
+			enumName := enum.EnumName
+			enumValues := make([]string, len(enum.EnumBody))
+
+			// Extract enum values from EnumBody
+			for i, enumElement := range enum.EnumBody {
+				if enumField, ok := enumElement.(*parserStructs.EnumField); ok {
+					enumValues[i] = enumField.Ident
+				}
+			}
+
+			// Add enum information to the map
+			enumInfo[enumName] = enumValues
+		}
+	}
+
+	return enumInfo
 }
 
 func printFields(data interface{}, indent int) string {
@@ -233,6 +265,11 @@ func printFields(data interface{}, indent int) string {
 		switch val := fieldValue.(type) {
 		case string:
 			result.WriteString(fmt.Sprintf("%s\n", val))
+		case []string:
+			result.WriteString("\n")
+			for _, str := range val {
+				result.WriteString(fmt.Sprintf("%s%s\n", indentStr, str))
+			}
 		case []model.Service:
 			result.WriteString("\n")
 			for _, service := range val {
