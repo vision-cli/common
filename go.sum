@@ -44,6 +44,8 @@ github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcU
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/vision-cli/api v0.3.0 h1:3Pfk/X07D/SyoKppmC1tEtuQLjthtf1tgBiRC1LjvWg=
 github.com/vision-cli/api v0.3.0/go.mod h1:2aaCOTFKqHtWuW6pE410OpkZBcinlDsU+e8J+2Atdus=
+github.com/yoheimuta/go-protoparser v3.4.0+incompatible h1:FdE033NnKLsvJFpfcy7eH9Rzl1k9f88HDmu9anoTsyY=
+github.com/yoheimuta/go-protoparser v3.4.0+incompatible/go.mod h1:NMMDARGayMyLM9oD1JUgKyF1Tv7aj9S+KcTG4lqvemo=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20200302210943-78000ba7a073/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/exp v0.0.0-20190121172915-509febef88a4/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
