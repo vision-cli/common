@@ -150,22 +150,59 @@ func getEntities(modelsGo string) ([]model.Entity, error) {
 		return nil, fmt.Errorf("error parsing models.go: %w", err)
 	}
 
-	// Default to in memory
-	persistence := "memory"
+	for i, decl := range file.Decls {
 
-	for _, decl := range file.Decls {
 		if genDecl, ok := decl.(*ast.GenDecl); ok {
-			parseTypeSpecs(genDecl.Specs, &entities, persistence)
+			if genDecl.Tok.String() == "import" {
+				continue
+			}
 
-			persistence = getPersistence(genDecl.Specs)
+			// Default to none
+			persistence := "none"
+			nextDeclIndex := i + 1
+			if declarationHasDataStruct(file.Decls, nextDeclIndex) {
+				persistence = getPersistence(genDecl)
+
+				if dataStructGenDecl, ok := file.Decls[nextDeclIndex].(*ast.GenDecl); ok {
+					parseTypeSpecs(dataStructGenDecl.Specs, &entities, persistence)
+				}
+			} else if !declarationIsDataStruct(genDecl) {
+				parseTypeSpecs(genDecl.Specs, &entities, persistence)
+			}
 		}
 	}
 
 	return entities, nil
 }
 
-func getPersistence(specs []ast.Spec) string {
-	for _, spec := range specs {
+func declarationIsDataStruct(decl *ast.GenDecl) bool {
+	for _, spec := range decl.Specs {
+		if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+			lowerCaseTypeName := strings.ToLower(typeSpec.Name.Name)
+			if strings.Contains(lowerCaseTypeName, "data") {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func declarationHasDataStruct(decls []ast.Decl, nextDeclIndex int) bool {
+	if nextDeclIndex >= len(decls) {
+		return false
+	}
+
+	if genDecl, ok := decls[nextDeclIndex].(*ast.GenDecl); ok {
+		return declarationIsDataStruct(genDecl)
+	}
+
+	return false
+}
+
+func getPersistence(genDecl *ast.GenDecl) string {
+
+	for _, spec := range genDecl.Specs {
 		if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 			if structType, ok := typeSpec.Type.(*ast.StructType); ok {
 				if usesGorm(structType) {
@@ -175,8 +212,8 @@ func getPersistence(specs []ast.Spec) string {
 		}
 	}
 
-	// Default to memory
-	return "memory"
+	// Default to none
+	return "none"
 }
 
 func parseTypeSpecs(specs []ast.Spec, entities *[]model.Entity, persistence string) {
@@ -184,18 +221,21 @@ func parseTypeSpecs(specs []ast.Spec, entities *[]model.Entity, persistence stri
 	for _, spec := range specs {
 		if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 			if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-				if strings.HasSuffix(typeSpec.Name.Name, "Data") {
-					entityName := typeSpec.Name.Name[:len(typeSpec.Name.Name)-4]
-					fields := getFields(structType)
+				entityName := strings.ToLower(typeSpec.Name.Name)
 
-					entity := model.Entity{
-						Name:        entityName,
-						Persistence: persistence,
-						Fields:      fields,
-					}
-
-					*entities = append(*entities, entity)
+				if strings.Contains(entityName, "data") {
+					entityName = entityName[:len(entityName)-4]
 				}
+
+				fields := getFields(structType)
+
+				entity := model.Entity{
+					Name:        entityName,
+					Persistence: persistence,
+					Fields:      fields,
+				}
+
+				*entities = append(*entities, entity)
 			}
 		}
 	}
@@ -205,11 +245,9 @@ func usesGorm(structType *ast.StructType) bool {
 	for _, field := range structType.Fields.List {
 
 		if field.Tag != nil {
-			// Assuming the field tag is a string, so remove backticks and split by spaces.
 			tagValues := strings.Fields(strings.Trim(field.Tag.Value, "`"))
 			for _, tagValue := range tagValues {
 				if strings.HasPrefix(tagValue, "gorm:") {
-					// We found a gorm tag.
 					return true
 				}
 			}

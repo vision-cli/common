@@ -13,6 +13,7 @@ require (
 
 require (
 	github.com/fatih/color v1.7.0 // indirect
+	github.com/hashicorp/hcl v1.0.0
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/mattn/go-isatty v0.0.8 // indirect
 	github.com/oshothebig/pbast v0.0.0-20170925213915-84cdd26c3def
