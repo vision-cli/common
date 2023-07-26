@@ -6,21 +6,33 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/vision-cli/common/cases"
+	"github.com/vision-cli/common/file"
 	"github.com/vision-cli/common/transpiler/model"
 	protoparser "github.com/yoheimuta/go-protoparser"
 	parserStructs "github.com/yoheimuta/go-protoparser/parser"
 )
 
-func ProjectStructure(projectDirectory string) ([]model.Module, error) {
-	targetDir := filepath.Join(projectDirectory, "services")
+const (
+	protoConst   = "proto"
+	modelsGoPath = "models/models.go"
+	importConst  = "import"
+	data         = "data"
+	none         = "none"
+	db           = "db"
+	unknown      = "unknown"
+	UUID         = "UUID"
+	Id           = "id"
+	Gorm         = "gorm"
+	TimeStamp    = "timestamp"
+)
 
+func ProjectStructure(servicesDirectory string) ([]model.Module, error) {
 	// Get module names and api versions
-	modules, err := Modules(targetDir)
+	modules, err := Modules(servicesDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("error reading modules: %w", err)
 	}
@@ -28,7 +40,7 @@ func ProjectStructure(projectDirectory string) ([]model.Module, error) {
 	// Get services for each module
 	for i, module := range modules {
 		moduleNameWithVersion := fmt.Sprintf("%s.%s", module.Name, module.ApiVersion)
-		moduleDirectory := filepath.Join(targetDir, moduleNameWithVersion)
+		moduleDirectory := filepath.Join(servicesDirectory, moduleNameWithVersion)
 		modules[i].Services, err = Services(moduleDirectory, &module)
 		if err != nil {
 			return nil, fmt.Errorf("error reading services: %w", err)
@@ -39,9 +51,9 @@ func ProjectStructure(projectDirectory string) ([]model.Module, error) {
 }
 
 func Modules(targetDir string) ([]model.Module, error) {
-	moduleDirs, err := os.ReadDir(targetDir)
+	moduleDirs, err := file.ReadDir(targetDir)
 	if err != nil {
-		return nil, fmt.Errorf("error reading directory, please ensure project root is correct: %w", err)
+		return nil, fmt.Errorf("error reading directory, please ensure services root directory is correct: %w", err)
 	}
 
 	modules := make([]model.Module, 0, len(moduleDirs))
@@ -62,7 +74,7 @@ func Modules(targetDir string) ([]model.Module, error) {
 }
 
 func Services(moduleDirectory string, module *model.Module) ([]model.Service, error) {
-	serviceDirs, err := os.ReadDir(moduleDirectory)
+	serviceDirs, err := file.ReadDir(moduleDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("error reading module directory: %w", err)
 	}
@@ -77,16 +89,16 @@ func Services(moduleDirectory string, module *model.Module) ([]model.Service, er
 			// Construct the .proto file path
 			protoFilename := fmt.Sprintf("%s_%s%s%s", module.Name, module.ApiVersion[:1], module.ApiVersion[1:], serviceName)
 			protoFilename = cases.Snake(protoFilename)
-			protoFilename = fmt.Sprintf("%s.proto", protoFilename)
-			protoFilePath := filepath.Join(moduleDirectory, serviceName, "proto", protoFilename)
+			protoFilename = fmt.Sprintf("%s.%s", protoFilename, protoConst)
+			protoFilePath := filepath.Join(moduleDirectory, serviceName, protoConst, protoFilename)
 
 			services[i].Enums, err = getEnums(protoFilePath)
 			if err != nil {
 				return nil, fmt.Errorf("error getting enums: %w", err)
 			}
 
-			modelsFolder := filepath.Join(moduleDirectory, path.Name(), "models", "models.go")
-			services[i].Entities, err = getEntities(modelsFolder)
+			modelsFile := filepath.Join(moduleDirectory, path.Name(), modelsGoPath)
+			services[i].Entities, err = getEntities(modelsFile)
 			if err != nil {
 				return nil, fmt.Errorf("error getting entities: %w", err)
 			}
@@ -99,13 +111,13 @@ func Services(moduleDirectory string, module *model.Module) ([]model.Service, er
 func getEnums(protoFilePath string) ([]model.Enum, error) {
 	serviceEnums := []model.Enum{}
 
-	file, err := os.Open(protoFilePath)
+	protoFile, err := file.Open(protoFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening .proto file: %w", err)
 	}
-	defer file.Close()
+	defer protoFile.Close()
 
-	reader := bufio.NewReader(file)
+	reader := bufio.NewReader(protoFile)
 
 	proto, _ := protoparser.Parse(reader)
 
@@ -145,25 +157,25 @@ func getEntities(modelsGo string) ([]model.Entity, error) {
 
 	fset := token.NewFileSet()
 
-	file, err := parser.ParseFile(fset, modelsGo, nil, parser.ParseComments)
+	modelsFile, err := parser.ParseFile(fset, modelsGo, nil, parser.ParseComments)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing models.go: %w", err)
 	}
 
-	for i, decl := range file.Decls {
+	for i, decl := range modelsFile.Decls {
 
 		if genDecl, ok := decl.(*ast.GenDecl); ok {
-			if genDecl.Tok.String() == "import" {
+			if genDecl.Tok.String() == importConst {
 				continue
 			}
 
 			// Default to none
-			persistence := "none"
+			persistence := none
 			nextDeclIndex := i + 1
-			if declarationHasDataStruct(file.Decls, nextDeclIndex) {
+			if declarationHasDataStruct(modelsFile.Decls, nextDeclIndex) {
 				persistence = getPersistence(genDecl)
 
-				if dataStructGenDecl, ok := file.Decls[nextDeclIndex].(*ast.GenDecl); ok {
+				if dataStructGenDecl, ok := modelsFile.Decls[nextDeclIndex].(*ast.GenDecl); ok {
 					parseTypeSpecs(dataStructGenDecl.Specs, &entities, persistence)
 				}
 			} else if !declarationIsDataStruct(genDecl) {
@@ -179,7 +191,7 @@ func declarationIsDataStruct(decl *ast.GenDecl) bool {
 	for _, spec := range decl.Specs {
 		if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 			lowerCaseTypeName := strings.ToLower(typeSpec.Name.Name)
-			if strings.Contains(lowerCaseTypeName, "data") {
+			if strings.Contains(lowerCaseTypeName, data) {
 				return true
 			}
 		}
@@ -206,14 +218,14 @@ func getPersistence(genDecl *ast.GenDecl) string {
 		if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 			if structType, ok := typeSpec.Type.(*ast.StructType); ok {
 				if usesGorm(structType) {
-					return "db"
+					return db
 				}
 			}
 		}
 	}
 
 	// Default to none
-	return "none"
+	return none
 }
 
 func parseTypeSpecs(specs []ast.Spec, entities *[]model.Entity, persistence string) {
@@ -223,7 +235,7 @@ func parseTypeSpecs(specs []ast.Spec, entities *[]model.Entity, persistence stri
 			if structType, ok := typeSpec.Type.(*ast.StructType); ok {
 				entityName := strings.ToLower(typeSpec.Name.Name)
 
-				if strings.Contains(entityName, "data") {
+				if strings.Contains(entityName, data) {
 					entityName = entityName[:len(entityName)-4]
 				}
 
@@ -247,7 +259,7 @@ func usesGorm(structType *ast.StructType) bool {
 		if field.Tag != nil {
 			tagValues := strings.Fields(strings.Trim(field.Tag.Value, "`"))
 			for _, tagValue := range tagValues {
-				if strings.HasPrefix(tagValue, "gorm:") {
+				if strings.HasPrefix(tagValue, Gorm) {
 					return true
 				}
 			}
@@ -284,7 +296,7 @@ func getFieldData(field *ast.Field) model.Field {
 	case *ast.SelectorExpr:
 		fieldData.Type = getSelectorType(fieldType)
 	default:
-		fieldData.Type = "unknown"
+		fieldData.Type = unknown
 	}
 
 	return fieldData
@@ -292,13 +304,13 @@ func getFieldData(field *ast.Field) model.Field {
 
 func getSelectorType(selector *ast.SelectorExpr) string {
 	selectorType := selector.Sel.Name
-	if selectorType == "UUID" {
-		return "id"
+	if selectorType == UUID {
+		return Id
 	}
 
-	if selectorType == "gorm" {
-		return "gorm"
+	if selectorType == Gorm {
+		return Gorm
 	}
 
-	return "timestamp"
+	return TimeStamp
 }
